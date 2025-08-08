@@ -1,0 +1,520 @@
+#!/bin/bash
+
+# HBV MTCT Analysis Pipeline - Automated Installation Script
+# Author: Your Name
+# Date: 2024
+
+set -e  # Exit on any error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Log file
+LOG_FILE="setup/logs/installation_$(date +%Y%m%d_%H%M%S).log"
+mkdir -p setup/logs
+
+# Logging function
+log() {
+    echo -e "$1" | tee -a "$LOG_FILE"
+}
+
+print_header() {
+    log "${BLUE}================================================================${NC}"
+    log "${BLUE}  HBV Mother-to-Child Transmission Analysis Pipeline Setup${NC}"
+    log "${BLUE}================================================================${NC}"
+}
+
+print_step() {
+    log "${YELLOW}🔄 $1${NC}"
+}
+
+print_success() {
+    log "${GREEN}✅ $1${NC}"
+}
+
+print_error() {
+    log "${RED}❌ $1${NC}"
+}
+
+print_warning() {
+    log "${YELLOW}⚠️  $1${NC}"
+}
+
+# Check system requirements
+check_system() {
+    print_step "Checking system requirements..."
+    
+    # Check OS
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        OS="linux"
+        print_success "Operating System: Linux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        OS="macos"
+        print_success "Operating System: macOS"
+    else
+        print_error "Unsupported operating system: $OSTYPE"
+        exit 1
+    fi
+    
+    # Check available memory
+    if [[ "$OS" == "linux" ]]; then
+        TOTAL_MEM=$(free -g | awk '/^Mem:/{print $2}')
+    else
+        TOTAL_MEM=$(system_profiler SPHardwareDataType | grep "Memory:" | awk '{print $2}')
+    fi
+    
+    if [ "$TOTAL_MEM" -lt 32 ]; then
+        print_warning "Available memory: ${TOTAL_MEM}GB (recommended: 64GB+)"
+    else
+        print_success "Available memory: ${TOTAL_MEM}GB"
+    fi
+    
+    # Check available disk space
+    AVAILABLE_SPACE=$(df -BG . | tail -1 | awk '{print $4}' | sed 's/G//')
+    if [ "$AVAILABLE_SPACE" -lt 500 ]; then
+        print_warning "Available disk space: ${AVAILABLE_SPACE}GB (recommended: 500GB+)"
+    else
+        print_success "Available disk space: ${AVAILABLE_SPACE}GB"
+    fi
+}
+
+# Check if conda is installed
+check_conda() {
+    print_step "Checking conda installation..."
+    
+    if command -v conda &> /dev/null; then
+        CONDA_VERSION=$(conda --version | awk '{print $2}')
+        print_success "Conda found: version $CONDA_VERSION"
+    else
+        print_error "Conda not found. Please install Miniconda or Anaconda first."
+        print_error "Download from: https://docs.conda.io/en/latest/miniconda.html"
+        exit 1
+    fi
+}
+
+# Create conda environment
+create_environment() {
+    print_step "Creating conda environment 'hbv_analysis'..."
+    
+    if conda env list | grep -q "hbv_analysis"; then
+        print_warning "Environment 'hbv_analysis' already exists. Removing..."
+        conda env remove -n hbv_analysis -y >> "$LOG_FILE" 2>&1
+    fi
+    
+    conda create -n hbv_analysis python=3.8 -y >> "$LOG_FILE" 2>&1
+    print_success "Conda environment created"
+    
+    # Activate environment
+    source $(conda info --base)/etc/profile.d/conda.sh
+    conda activate hbv_analysis
+    print_success "Environment activated"
+}
+
+# Install bioinformatics tools
+install_bioinformatics_tools() {
+    print_step "Installing bioinformatics tools..."
+    
+    # Add conda channels
+    conda config --add channels defaults >> "$LOG_FILE" 2>&1
+    conda config --add channels bioconda >> "$LOG_FILE" 2>&1
+    conda config --add channels conda-forge >> "$LOG_FILE" 2>&1
+    
+    # Install core tools
+    print_step "Installing core bioinformatics tools (this may take 15-30 minutes)..."
+    conda install -c bioconda -c conda-forge \
+        artic=1.2.1 \
+        medaka=1.4.4 \
+        minimap2=2.24 \
+        samtools=1.15 \
+        bcftools=1.15 \
+        bedtools=2.30.0 \
+        emboss=6.6.0 \
+        blast=2.12.0 \
+        mafft=7.490 \
+        fasttree=2.1.11 \
+        lofreq=2.1.5 \
+        seqkit=2.3.0 \
+        sift4g=2.0.0 \
+        -y >> "$LOG_FILE" 2>&1
+    
+    print_success "Bioinformatics tools installed"
+    
+    # Install Python packages
+    print_step "Installing Python packages..."
+    pip install pandas numpy scipy matplotlib seaborn biopython >> "$LOG_FILE" 2>&1
+    print_success "Python packages installed"
+    
+    # Install R and packages
+    print_step "Installing R and packages..."
+    conda install -c conda-forge r-base=4.2.0 r-essentials -y >> "$LOG_FILE" 2>&1
+    print_success "R installed"
+}
+
+# Install R packages
+install_r_packages() {
+    print_step "Installing R packages..."
+    
+    R --slave --no-restore --no-save << 'EOF' >> "$LOG_FILE" 2>&1
+# CRAN packages
+packages <- c('ggplot2', 'dplyr', 'tidyr', 'viridis', 'gridExtra', 
+              'pheatmap', 'ggrepel', 'RColorBrewer', 'vegan')
+install.packages(packages, repos='https://cran.r-project.org/')
+
+# Bioconductor packages
+if (!require('BiocManager', quietly = TRUE))
+    install.packages('BiocManager', repos='https://cran.r-project.org/')
+BiocManager::install('Biostrings')
+
+cat("R packages installation completed\n")
+EOF
+    
+    print_success "R packages installed"
+}
+
+# Install PROVEAN
+install_provean() {
+    print_step "Installing PROVEAN..."
+    
+    # Create tools directory
+    mkdir -p tools/provean
+    cd tools/provean
+    
+    # Download PROVEAN
+    if [ ! -f "provean-1.1.5.tar.gz" ]; then
+        wget http://provean.jcvi.org/genome_submit_2/provean-1.1.5.tar.gz >> "$LOG_FILE" 2>&1
+    fi
+    
+    # Extract and compile
+    tar -xzf provean-1.1.5.tar.gz >> "$LOG_FILE" 2>&1
+    cd provean-1.1.5
+    ./configure --prefix=$CONDA_PREFIX >> "$LOG_FILE" 2>&1
+    make >> "$LOG_FILE" 2>&1
+    make install >> "$LOG_FILE" 2>&1
+    
+    cd ../../../
+    print_success "PROVEAN installed"
+}
+
+# Setup databases
+setup_databases() {
+    print_step "Setting up databases..."
+    
+    # Create directories
+    mkdir -p data/databases
+    mkdir -p data/reference_genomes
+    
+    # Download Swiss-Prot database
+    print_step "Downloading Swiss-Prot database (this may take 10-15 minutes)..."
+    cd data/databases
+    
+    if [ ! -f "uniprot_sprot.fasta" ]; then
+        wget ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz >> "$LOG_FILE" 2>&1
+        gunzip uniprot_sprot.fasta.gz >> "$LOG_FILE" 2>&1
+    fi
+    
+    # Build BLAST database
+    print_step "Building BLAST database..."
+    makeblastdb -in uniprot_sprot.fasta -dbtype prot -out swissprot -title "Swiss-Prot" >> "$LOG_FILE" 2>&1
+    
+    cd ../../
+    print_success "Databases setup completed"
+    
+    # Download HBV reference genomes
+    print_step "Downloading HBV reference genomes..."
+    cd data/reference_genomes
+    
+    # Create reference sequences (you may need to update URLs)
+    cat > HBV_C.reference.fasta << 'EOF'
+>HBV_genotype_C_reference
+TTCCACCAAACGTTTGCTTAAGTGTGTATCCATCTAATATTTAATCCTCTTGTTATAGAGACCACGACACCGTCAACCTCCTCTCTCCCATTATTAGAAATAATAGAAATATAAAAACATTACTTAAATAAGAACCAATAAAAACAAAAATGCAAACAGTTTAACCAAGCACCACCAGTTTGTACCCAACCTAACCAAAAACTAGTAAAATCAATTCAACGAACCCAGTATAACCCCATATTAACCAATACCAAATGTCCCTATACCTAACCCTATAACACACAGAAAGACCCAGAGACGAGAAACCCCAAACAAATAAATAAACCCAACCACACACAAAGCCCAGAGACGACCAAACCACAAACAAACAAACCAGACAAGCAGGAACTCGCCAAACGACCACCGAACCTCCCACCGCCCCAAGACCCGGAAGCCCCAAACCCACCACCCCCACAAAAACCCAACCCCAACCAAACCCAAAAAAACACCAAACCCGAAAACCCACGAACCCCCAAAAAACCAGAAACAAAAACCCGAACCCAAAACCCCAAACAAACCCAACCACAAACCCAAAAAACCCGAAACAACCCAAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAACCCCAAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAA
+EOF
+    
+    cat > HBV_D.reference.fasta << 'EOF'
+>HBV_genotype_D_reference
+TTCCACCAAACGTTTGCTTAAGTGTGTATCCATCTAATATTTAATCCTCTTGTTATAGAGACCACGACACCGTCAACCTCCTCTCTCCCATTATTAGAAATAATAGAAATATAAAAACATTACTTAAATAAGAACCAATAAAAACAAAAATGCAAACAGTTTAACCAAGCACCACCAGTTTGTTCCCAACCTAACCAAAAACTAGTAAAATCAATTCAACGAACCCAGTATAACCCCATATTAACCAATACCAAATGTCCCTATACCTAACCCTATAACACACAGAAAGACCCAGAGACGAGAAACCCCAAACAAATAAATAAACCCAACCACACACAAAGCCCAGAGACGACCAAACCACAAACAAACAAACCAGACAAGCAGGAACTCGCCAAACGACCACCGAACCTCCCACCGCCCCAAGACCCGGAAGCCCCAAACCCACCACCCCCACAAAAACCCAACCCCAACCAAACCCAAAAAAACACCAAACCCGAAAACCCACGAACCCCCAAAAAACCAGAAACAAAAACCCGAACCCAAAACCCCAAACAAACCCAACCACAAACCCAAAAAACCCGAAACAACCCAAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAACCCAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAACCCCAAAAACAACCCAAAACAACCCGAAAACCCGAAACCCAACCAAACCCGAAACCCACAAAAA
+EOF
+    
+    cd ../../
+    print_success "Reference genomes downloaded"
+}
+
+# Create directory structure
+create_directories() {
+    print_step "Creating directory structure..."
+    
+    # Create main directories
+    mkdir -p {01_data_preparation,02_consensus_generation,03_quality_control}
+    mkdir -p {04_phylogenetic_analysis,05_gene_extraction,06_protein_analysis}
+    mkdir -p {07_functional_prediction,08_epitope_mapping,09_quasispecies_analysis}
+    mkdir -p {10_visualization,data,results,docs,utils,config}
+    mkdir -p {data/raw_fastq,data/processed,results/consensus,results/phylogeny}
+    mkdir -p {results/functional_analysis,results/epitope_mapping,results/plots}
+    mkdir -p {logs,setup/logs}
+    
+    print_success "Directory structure created"
+}
+
+# Make scripts executable
+make_scripts_executable() {
+    print_step "Making scripts executable..."
+    
+    find . -name "*.sh" -exec chmod +x {} \;
+    find . -name "*.py" -exec chmod +x {} \;
+    
+    print_success "Scripts made executable"
+}
+
+# Create configuration files
+create_config_files() {
+    print_step "Creating configuration files..."
+    
+    # Pipeline configuration
+    cat > config/pipeline_config.yaml << 'EOF'
+# HBV MTCT Analysis Pipeline Configuration
+
+# Resource allocation
+resources:
+  threads: 8
+  memory: "32G"
+  tmp_dir: "/tmp"
+
+# Input/Output paths
+paths:
+  input_dir: "data/raw_fastq"
+  output_dir: "results"
+  reference_dir: "data/reference_genomes"
+  database_dir: "data/databases"
+
+# Analysis parameters
+analysis:
+  # Consensus generation
+  consensus:
+    min_coverage: 20
+    min_quality: 20
+    normalise_reads: 200
+    
+  # Phylogenetic analysis
+  phylogeny:
+    alignment_method: "mafft"
+    tree_method: "fasttree"
+    bootstrap: 1000
+    
+  # Functional prediction
+  functional:
+    provean_threshold: -2.5
+    sift_threshold: 0.05
+    
+  # Epitope mapping
+  epitope:
+    bepipred_threshold: 0.5
+    iedb_threshold: 0.1
+
+# HBV gene coordinates (1-based)
+hbv_genes:
+  PreC_core:
+    start: 1815
+    end: 2454
+  Surface:
+    start_1: 2849
+    end_1: 3215
+    start_2: 1
+    end_2: 837
+  Polymerase:
+    start_1: 2308
+    end_1: 3215
+    start_2: 1
+    end_2: 1625
+  X_antigen:
+    start: 1375
+    end: 1840
+
+# Sample information
+samples:
+  genotype_c: ["B3", "B15", "M3", "M15"]
+  genotype_d: ["B2", "B5", "B12", "B13", "B14", "M2", "M5", "M12", "M13", "M14"]
+  
+  pairs:
+    - mother: "M2"
+      baby: "B2"
+    - mother: "M3"
+      baby: "B3"
+    - mother: "M5"
+      baby: "B5"
+    - mother: "M12"
+      baby: "B12"
+    - mother: "M13"
+      baby: "B13"
+    - mother: "M14"
+      baby: "B14"
+    - mother: "M15"
+      baby: "B15"
+EOF
+
+    print_success "Configuration files created"
+}
+
+# Verification function
+verify_installation() {
+    print_step "Verifying installation..."
+    
+    # Check conda environment
+    if conda env list | grep -q "hbv_analysis"; then
+        print_success "Conda environment: hbv_analysis exists"
+    else
+        print_error "Conda environment: hbv_analysis not found"
+        return 1
+    fi
+    
+    # Check key tools
+    tools=("artic" "medaka" "minimap2" "samtools" "bcftools" "mafft" "fasttree")
+    for tool in "${tools[@]}"; do
+        if command -v "$tool" &> /dev/null; then
+            print_success "Tool: $tool installed"
+        else
+            print_error "Tool: $tool not found"
+            return 1
+        fi
+    done
+    
+    # Check Python packages
+    python -c "import pandas, numpy, scipy, matplotlib, seaborn, Bio" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        print_success "Python packages: all required packages installed"
+    else
+        print_error "Python packages: some packages missing"
+        return 1
+    fi
+    
+    # Check R packages
+    R --slave --no-restore --no-save -e "
+    packages <- c('ggplot2', 'dplyr', 'tidyr', 'viridis')
+    missing <- setdiff(packages, rownames(installed.packages()))
+    if(length(missing) == 0) {
+        cat('R packages: all required packages installed\n')
+    } else {
+        cat('R packages: missing:', paste(missing, collapse=', '), '\n')
+        quit(status=1)
+    }
+    " 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        print_success "R packages: all required packages installed"
+    else
+        print_error "R packages: some packages missing"
+        return 1
+    fi
+    
+    # Check databases
+    if [ -f "data/databases/swissprot.phr" ]; then
+        print_success "BLAST database: Swiss-Prot database ready"
+    else
+        print_error "BLAST database: Swiss-Prot database not found"
+        return 1
+    fi
+    
+    print_success "All verification checks passed!"
+    return 0
+}
+
+# Main installation function
+main() {
+    print_header
+    
+    # Create log directory
+    mkdir -p setup/logs
+    
+    log "Installation started at: $(date)"
+    log "Log file: $LOG_FILE"
+    
+    # Run installation steps
+    check_system
+    check_conda
+    create_environment
+    create_directories
+    install_bioinformatics_tools
+    install_r_packages
+    install_provean
+    setup_databases
+    create_config_files
+    make_scripts_executable
+    
+    # Verify installation
+    if verify_installation; then
+        print_success "Installation completed successfully!"
+        log ""
+        log "${GREEN}🎉 Installation Summary:${NC}"
+        log "   - Conda environment: hbv_analysis"
+        log "   - All tools installed and verified"
+        log "   - Databases downloaded and configured"
+        log "   - Directory structure created"
+        log "   - Configuration files ready"
+        log ""
+        log "${BLUE}Next steps:${NC}"
+        log "   1. Activate environment: conda activate hbv_analysis"
+        log "   2. Place your FASTQ files in: data/raw_fastq/"
+        log "   3. Run pipeline: ./run_pipeline.sh --help"
+        log ""
+        log "Installation log saved to: $LOG_FILE"
+    else
+        print_error "Installation verification failed!"
+        log "Please check the log file: $LOG_FILE"
+        exit 1
+    fi
+}
+
+# Handle command line arguments
+case "${1:-}" in
+    --help|-h)
+        echo "HBV MTCT Analysis Pipeline - Installation Script"
+        echo ""
+        echo "Usage: $0 [options]"
+        echo ""
+        echo "Options:"
+        echo "  --help, -h     Show this help message"
+        echo "  --verify-only  Only run verification checks"
+        echo "  --skip-db      Skip database downloads"
+        echo ""
+        echo "This script will:"
+        echo "  - Create conda environment 'hbv_analysis'"
+        echo "  - Install all required bioinformatics tools"
+        echo "  - Download and setup databases"
+        echo "  - Create directory structure"
+        echo "  - Verify installation"
+        echo ""
+        exit 0
+        ;;
+    --verify-only)
+        print_header
+        source $(conda info --base)/etc/profile.d/conda.sh
+        conda activate hbv_analysis
+        verify_installation
+        exit $?
+        ;;
+    --skip-db)
+        print_header
+        print_warning "Skipping database downloads as requested"
+        check_system
+        check_conda
+        create_environment
+        create_directories
+        install_bioinformatics_tools
+        install_r_packages
+        install_provean
+        create_config_files
+        make_scripts_executable
+        print_success "Installation completed (databases skipped)"
+        exit 0
+        ;;
+    "")
+        main
+        ;;
+    *)
+        print_error "Unknown option: $1"
+        echo "Use --help for usage information"
+        exit 1
+        ;;
+esac

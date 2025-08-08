@@ -1,340 +1,366 @@
 # HBV Mother-to-Child Transmission Analysis Pipeline
 
-## Project Overview
+## Overview
 
-This repository contains the complete bioinformatics pipeline for analyzing Hepatitis B virus (HBV) mother-to-child transmission using Oxford Nanopore long-read sequencing data. The study characterizes 749 mutations across 16 clinical samples (8 mother-infant pairs) infected with HBV genotypes C and D.
-
-### Key Findings
-- **749 mutations analyzed** across all four major HBV proteins
-- **82.4% deleterious rate** indicating extreme functional constraints
-- **Novel L256P drug resistance mutation** discovered
-- **Vaccine escape mutations** L140F and P145L identified
-- **96% epitope disruption rate** in surface antigen
-- **Complete transmission bottleneck analysis** performed
-
----
+A comprehensive bioinformatics pipeline for analyzing Hepatitis B Virus (HBV) mother-to-child transmission using Oxford Nanopore long-read sequencing data. This pipeline performs consensus generation, variant calling, phylogenetic analysis, protein functional analysis, and quasispecies diversity assessment to understand viral transmission dynamics.
 
 ## Table of Contents
 
-- [Installation](#️-installation)
-- [Project Structure](#-project-structure)
-- [Pipeline Workflow](#-pipeline-workflow)
-- [Usage](#-usage)
-- [Results](#-results)
-- [Citation](#-citation)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Pipeline Workflow](#pipeline-workflow)
+- [Input Data](#input-data)
+- [Output Description](#output-description)
+- [Software Requirements](#software-requirements)
+- [Repository Structure](#repository-structure)
+- [Citation](#citation)
+- [Support](#support)
 
----
+## Features
+
+- **Consensus Generation**: ARTIC-based consensus calling for HBV genotypes C and D
+- **Variant Analysis**: High and low-frequency variant detection using bcftools and LoFreq
+- **Phylogenetic Analysis**: Mother-baby pair relationships and transmission tracking
+- **Protein Analysis**: Functional impact prediction using PROVEAN and epitope mapping
+- **Quasispecies Analysis**: Viral diversity and transmission bottleneck assessment
+- **Quality Control**: Comprehensive QC metrics and statistics throughout
+- **Visualization**: Publication-ready plots and interactive reports
+- **Scalable**: Designed for HPC environments with SLURM job scheduler
+
+## Quick Start
+
+```bash
+# 1. Clone repository
+git clone https://github.com/BelaProfile/HBV-MTCT-Analysis-Pipeline.git
+cd HBV-MTCT-Analysis-Pipeline
+
+# 2. Install dependencies
+conda env create -f environment.yml
+conda activate hbv_analysis
+
+# 3. Setup pipeline
+bash utils/setup_environment.sh
+
+# 4. Configure your data
+cp config/samples.tsv.template config/samples.tsv
+# Edit config/samples.tsv with your sample information
+
+# 5. Run complete pipeline
+bash run_complete_pipeline.sh
+```
 
 ## Installation
 
-### Prerequisites
-```bash
-# System requirements
-- Linux/macOS (tested on Ubuntu 20.04)
-- Conda/Miniconda 4.10+
-- Python 3.8+
-- R 4.0+
-- 32GB RAM minimum (64GB recommended)
-- 500GB storage space
-```
+### System Requirements
+- **OS**: Linux (Ubuntu 18.04+, CentOS 7+)
+- **CPU**: 8+ cores (16+ recommended)
+- **Memory**: 32GB+ (64GB recommended)
+- **Storage**: 100GB+ free space
+- **Job Scheduler**: SLURM (optional but recommended)
 
-### Quick Setup
-```bash
-# Clone repository
-git clone https://github.com/yourusername/hbv-mtct-analysis.git
-cd hbv-mtct-analysis
+### Detailed Installation
+See [INSTALLATION.md](INSTALLATION.md) for complete setup instructions including:
+- System dependencies
+- Conda environment setup
+- Software compilation instructions
+- Database downloads
+- Troubleshooting guide
 
-# Run automated setup
-./setup/install_dependencies.sh
+## Software Requirements
 
-# Activate environment
-conda activate hbv_analysis
-```
+### Core Dependencies (Auto-installed)
+| Software | Version | Purpose | Source |
+|----------|---------|---------|---------|
+| **ARTIC** | 1.2.2 | Consensus generation | [GitHub](https://github.com/artic-network/artic-ncov2019) |
+| **minimap2** | 2.24 | Read alignment | [GitHub](https://github.com/lh3/minimap2) |
+| **samtools** | 1.15.1 | SAM/BAM processing | [GitHub](https://github.com/samtools/samtools) |
+| **bcftools** | 1.15.1 | Variant calling | [GitHub](https://github.com/samtools/bcftools) |
+| **MAFFT** | 7.490 | Multiple alignment | [Official](https://mafft.cbrc.jp/alignment/software/) |
+| **FastTree** | 2.1.11 | Phylogeny | [Official](http://www.microbesonline.org/fasttree/) |
+| **bedtools** | 2.30.0 | Interval operations | [GitHub](https://github.com/arq5x/bedtools2) |
+| **EMBOSS** | 6.6.0 | Sequence analysis | [Official](http://emboss.sourceforge.net/) |
+| **LoFreq** | 2.1.5 | Low-freq variants | [GitHub](https://github.com/CSB5/lofreq) |
 
-### Manual Installation
-See [Installation Guide](docs/INSTALLATION.md) for detailed setup instructions.
-
----
-
-## Project Structure
-
-```
-hbv-mtct-analysis/
-├── 📂 [01_data_preparation/](01_data_preparation/) - Raw data processing
-│   ├── [concatenate_fastq.sh](01_data_preparation/concatenate_fastq.sh)
-│   ├── [create_samples_tsv.sh](01_data_preparation/create_samples_tsv.sh)
-│   └── [setup_primer_schemes.sh](01_data_preparation/setup_primer_schemes.sh)
-├── 📂 [02_consensus_generation/](02_consensus_generation/) - Genome assembly
-│   ├── [artic_genotype_c.sh](02_consensus_generation/artic_genotype_c.sh)
-│   ├── [artic_genotype_d.sh](02_consensus_generation/artic_genotype_d.sh)
-│   └── [medaka_consensus.sh](02_consensus_generation/medaka_consensus.sh)
-├── 📂 [03_quality_control/](03_quality_control/) - QC and validation
-│   ├── [compare_consensus.R](03_quality_control/compare_consensus.R)
-│   └── [consensus_stats.sh](03_quality_control/consensus_stats.sh)
-├── 📂 [04_phylogenetic_analysis/](04_phylogenetic_analysis/) - Evolutionary analysis
-│   ├── [combined_tree.sh](04_phylogenetic_analysis/combined_tree.sh)
-│   ├── [pairwise_trees.sh](04_phylogenetic_analysis/pairwise_trees.sh)
-│   └── [evolutionary_analysis.sh](04_phylogenetic_analysis/evolutionary_analysis.sh)
-├── 📂 [05_gene_extraction/](05_gene_extraction/) - CDS extraction
-│   ├── [extract_genes_translate_proteins.sh](05_gene_extraction/extract_genes_translate_proteins.sh)
-│   ├── [extract_translate_ref.sh](05_gene_extraction/extract_translate_ref.sh)
-│   └── [extract_polymerase.sh](05_gene_extraction/extract_polymerase.sh)
-├── 📂 [06_protein_analysis/](06_protein_analysis/) - Protein processing
-│   ├── [clean_orfs.sh](06_protein_analysis/clean_orfs.sh)
-│   ├── [compare_proteins.sh](06_protein_analysis/compare_proteins.sh)
-│   └── [alphafold_preparation.sh](06_protein_analysis/alphafold_preparation.sh)
-├── 📂 [07_functional_prediction/](07_functional_prediction/) - Mutation impact
-│   ├── [provean_analysis.sh](07_functional_prediction/provean_analysis.sh)
-│   └── [sift_analysis.sh](07_functional_prediction/sift_analysis.sh)
-├── 📂 [08_epitope_mapping/](08_epitope_mapping/) - Immune analysis
-│   ├── [epitope_analysis.py](08_epitope_mapping/epitope_analysis.py)
-│   └── [process_bepipred_results.R](08_epitope_mapping/process_bepipred_results.R)
-├── 📂 [09_quasispecies_analysis/](09_quasispecies_analysis/) - Diversity analysis
-│   ├── [lofreq_variant_calling.sh](09_quasispecies_analysis/lofreq_variant_calling.sh)
-│   ├── [shannon_diversity.R](09_quasispecies_analysis/shannon_diversity.R)
-│   └── [allele_frequency_analysis.py](09_quasispecies_analysis/allele_frequency_analysis.py)
-├── 📂 [10_visualization/](10_visualization/) - Data visualization
-│   ├── [hbv_visualization.R](10_visualization/hbv_visualization.R)
-│   └── [create_publication_figures.R](10_visualization/create_publication_figures.R)
-├── 📂 [data/](data/) - Input data directory
-├── 📂 [results/](results/) - Output directory
-├── 📂 [docs/](docs/) - Documentation
-├── 📂 [setup/](setup/) - Installation scripts
-└── 📂 [utils/](utils/) - Utility functions
-```
-
----
+### Analysis Dependencies
+| Software | Version | Purpose | Source |
+|----------|---------|---------|---------|
+| **PROVEAN** | 1.1.5 | Functional prediction | [Official](http://provean.jcvi.org/) |
+| **R** | 4.2.0+ | Statistical analysis | [CRAN](https://cran.r-project.org/) |
+| **Python** | 3.8+ | Data processing | [Official](https://www.python.org/) |
 
 ## Pipeline Workflow
 
-### Overview Diagram
 ```mermaid
 graph TD
     A[Raw FASTQ Files] --> B[Data Preparation]
-    B --> C[Consensus Generation]
-    C --> D[Quality Control]
-    D --> E[Phylogenetic Analysis]
-    D --> F[Gene Extraction]
+    B --> C[Quality Control]
+    C --> D[Consensus Generation]
+    D --> E[Variant Calling]
+    E --> F[Phylogenetic Analysis]
     F --> G[Protein Analysis]
     G --> H[Functional Prediction]
-    G --> I[Epitope Mapping]
-    D --> J[Quasispecies Analysis]
-    H --> K[Visualization]
-    I --> K
-    J --> K
-    E --> K
+    H --> I[Quasispecies Analysis]
+    I --> J[Visualization & Reports]
+    
+    style A fill:#e1f5fe
+    style J fill:#f3e5f5
+    style D fill:#e8f5e8
+    style E fill:#fff3e0
+    style F fill:#fce4ec
+    style G fill:#f1f8e9
+    style H fill:#e0f2f1
+    style I fill:#faf2ff
 ```
 
-### Step-by-Step Execution
+### Processing Steps
 
-#### Step 1: [Data Preparation](01_data_preparation/)
-```bash
-# Concatenate FASTQ files by barcode
-./01_data_preparation/concatenate_fastq.sh
+| Step | Script | Input | Output | Runtime* | Purpose |
+|------|--------|--------|--------|----------|---------|
+| **1. Data Prep** | [`concatenate_fastq.sh`](scripts/01_data_preparation/concatenate_fastq.sh) | Raw FASTQ | Concatenated FASTQ | 10-30 min | Combine barcode files |
+| **2. Consensus** | [`artic_genotype_d.sh`](scripts/02_consensus_generation/artic_genotype_d.sh) | FASTQ + Primers | Consensus FASTA | 30-120 min | Generate consensus |
+| **3. Variants** | [`variant_mapping.sh`](scripts/03_variant_calling/variant_mapping.sh) | Consensus + Ref | VCF + BAM | 15-45 min | Call variants |
+| **4. Phylogeny** | [`combined_tree_analysis.sh`](scripts/04_phylogenetic_analysis/combined_tree_analysis.sh) | Multiple FASTA | Trees | 20-60 min | Build relationships |
+| **5. Proteins** | [`extract_genes.sh`](scripts/05_protein_analysis/extract_genes.sh) | Consensus | AA sequences | 10-30 min | Extract proteins |
+| **6. Function** | [`provean_analysis.sh`](scripts/06_functional_analysis/provean_analysis.sh) | Proteins | Impact scores | 60-300 min | Predict effects |
+| **7. Quasispecies** | [`quasispecies_diversity.sh`](scripts/07_quasispecies_analysis/quasispecies_diversity.sh) | FASTQ + Ref | Diversity metrics | 30-90 min | Assess diversity |
+| **8. Visualization** | [`generate_plots.R`](scripts/08_visualization/generate_plots.R) | All results | Plots + Report | 15-30 min | Create figures |
 
-# Create sample metadata
-./01_data_preparation/create_samples_tsv.sh
+*Runtime estimates for ~14 samples on 16-core system
 
-# Setup primer schemes
-./01_data_preparation/setup_primer_schemes.sh
+## Input Data
+
+### Required Input Files
+
+#### 1. Raw Sequencing Data
+```
+data/raw_reads/
+├── barcode01/          # Sample B2 - ~50-500MB per barcode
+│   ├── FAT12345_001.fastq
+│   ├── FAT12345_002.fastq
+│   └── ...
+├── barcode02/          # Sample B5
+└── ...
 ```
 
-#### Step 2: [Consensus Generation](02_consensus_generation/)
-```bash
-# Generate consensus for genotype C samples
-./02_consensus_generation/artic_genotype_c.sh
-
-# Generate consensus for genotype D samples
-./02_consensus_generation/artic_genotype_d.sh
-
-# Alternative: Medaka consensus
-./02_consensus_generation/medaka_consensus.sh
+#### 2. Sample Metadata File
+Create `config/samples.tsv`:
+```tsv
+sample_id	barcode_dir	genotype	reference_fa	mother_baby_pair	sequencing_kit
+B2	barcode01	D	HBV_D.reference.fasta	2	V2
+M2	barcode83	D	HBV_D.reference.fasta	2	V2
+B3	barcode09	C	HBV_C.reference.fasta	3	V2
+M3	barcode84	C	HBV_C.reference.fasta	3	V1
 ```
 
-#### Step 3: [Quality Control](03_quality_control/)
-```bash
-# Compare consensus methods
-Rscript 03_quality_control/compare_consensus.R
+#### 3. Reference Genomes and Primer Schemes
+- HBV genotype C reference (3,215 bp)
+- HBV genotype D reference (3,182 bp)
+- ARTIC primer schemes for both genotypes
+- Combined reference database for variant calling
 
-# Generate QC statistics
-./03_quality_control/consensus_stats.sh
+### Data Format Specifications
+| File Type | Format | Size Range | Requirements |
+|-----------|--------|------------|--------------|
+| Raw reads | FASTQ | 50-500 MB | Oxford Nanopore, gzip compressed |
+| References | FASTA | 3-4 KB | Single sequence, no ambiguous bases |
+| Primer schemes | BED | 1-5 KB | 0-based coordinates |
+| Sample metadata | TSV | <10 KB | Tab-separated, UTF-8 encoding |
+
+## Output Description
+
+### Directory Structure After Completion
+```
+results/
+├── consensus/                  # Consensus sequences (~3KB each)
+│   ├── B2.consensus.fasta
+│   ├── M2.consensus.fasta
+│   └── consensus_statistics.txt
+├── variants/                   # Variant calling results
+│   ├── bam/                   # Alignment files (~1-10MB each)
+│   ├── vcf/                   # Variant files (~1-100KB each)
+│   └── statistics/            # Mapping and variant stats
+├── phylogeny/                 # Phylogenetic analysis
+│   ├── trees/                 # Newick trees (~1-10KB)
+│   ├── alignments/            # MSA files (~50-100KB)
+│   ├── pairwise_trees/        # Mother-baby pair trees
+│   └── genetic_distances.csv  # Distance matrices
+├── protein_analysis/          # Protein sequences and analysis
+│   ├── genes/                 # CDS sequences (~500bp-3KB)
+│   ├── proteins/              # AA sequences (~50-800aa)
+│   ├── alignments/            # Protein alignments
+│   └── mutation_analysis.txt  # Protein differences
+├── functional_analysis/       # Impact predictions
+│   ├── provean_results/       # PROVEAN scores and predictions
+│   ├── epitope_mapping/       # B/T cell epitope analysis
+│   ├── drug_resistance/       # Resistance mutations
+│   └── evolutionary_analysis/ # Selection pressure metrics
+├── quasispecies/             # Diversity analysis
+│   ├── diversity_metrics.csv # Shannon entropy, etc.
+│   ├── transmission_analysis/ # Bottleneck assessment
+│   └── variant_frequencies/   # Low-frequency variants
+└── visualization/            # Plots and reports
+    ├── figures/              # Publication-ready plots (PNG/PDF)
+    ├── interactive_plots/    # HTML interactive plots
+    └── final_report.html     # Comprehensive analysis report
 ```
 
-#### Step 4: [Phylogenetic Analysis](04_phylogenetic_analysis/)
-```bash
-# Combined phylogenetic tree
-./04_phylogenetic_analysis/combined_tree.sh
-
-# Pairwise mother-baby trees
-./04_phylogenetic_analysis/pairwise_trees.sh
-
-# Evolutionary analysis
-./04_phylogenetic_analysis/evolutionary_analysis.sh
-```
-
-#### Step 5: [Gene Extraction](05_gene_extraction/)
-```bash
-# Extract and translate all genes
-./05_gene_extraction/extract_genes_translate_proteins.sh
-
-# Process reference sequences
-./05_gene_extraction/extract_translate_ref.sh
-
-# Handle polymerase circular genome
-./05_gene_extraction/extract_polymerase.sh
-```
-
-#### Step 6: [Protein Analysis](06_protein_analysis/)
-```bash
-# Clean ORFs
-./06_protein_analysis/clean_orfs.sh
-
-# Compare mother-baby proteins
-./06_protein_analysis/compare_proteins.sh
-
-# Prepare for AlphaFold
-./06_protein_analysis/alphafold_preparation.sh
-```
-
-#### Step 7: [Functional Prediction](07_functional_prediction/)
-```bash
-# PROVEAN analysis for small proteins
-./07_functional_prediction/provean_analysis.sh
-
-# SIFT analysis for large proteins
-./07_functional_prediction/sift_analysis.sh
-```
-
-#### Step 8: [Epitope Mapping](08_epitope_mapping/)
-```bash
-# Analyze epitope disruptions
-python 08_epitope_mapping/epitope_analysis.py
-
-# Process BepiPred results
-Rscript 08_epitope_mapping/process_bepipred_results.R
-```
-
-#### Step 9: [Quasispecies Analysis](09_quasispecies_analysis/)
-```bash
-# Variant calling with LoFreq
-./09_quasispecies_analysis/lofreq_variant_calling.sh
-
-# Shannon diversity analysis
-Rscript 09_quasispecies_analysis/shannon_diversity.R
-
-# Allele frequency analysis
-python 09_quasispecies_analysis/allele_frequency_analysis.py
-```
-
-#### Step 10: [Visualization](10_visualization/)
-```bash
-# Generate all plots
-Rscript 10_visualization/hbv_visualization.R
-
-# Create publication figures
-Rscript 10_visualization/create_publication_figures.R
-```
-
----
+### Key Output Files
+| File | Description | Format | Typical Size |
+|------|-------------|---------|--------------|
+| `*.consensus.fasta` | Complete HBV genomes | FASTA | ~3KB |
+| `*_variants.vcf.gz` | High-confidence variants | VCF | 1-50KB |
+| `*_tree.nwk` | Phylogenetic trees | Newick | ~1KB |
+| `*_provean.txt` | Functional predictions | Text | ~10KB |
+| `diversity_metrics.csv` | Quasispecies diversity | CSV | ~5KB |
+| `final_report.html` | Complete analysis report | HTML | ~5MB |
 
 ## Usage
 
-### Quick Start
+### Running Individual Steps
+
+#### Step 1: Data Preparation
 ```bash
-# Complete pipeline execution
-./run_pipeline.sh --input data/raw_fastq --output results --threads 8
+# Concatenate FASTQ files by barcode
+sbatch scripts/01_data_preparation/concatenate_fastq.sh
 
-# Individual module execution
-./run_pipeline.sh --module consensus_generation --input data/raw_fastq
-
-# Help
-./run_pipeline.sh --help
+# Check quality metrics
+sbatch scripts/01_data_preparation/quality_control.sh
 ```
 
-### Configuration
-Edit `config/pipeline_config.yaml` to customize:
-- Reference genomes
-- Analysis parameters
+#### Step 2: Consensus Generation
+```bash
+# For HBV genotype D samples (most common)
+sbatch scripts/02_consensus_generation/artic_genotype_d.sh
+
+# For HBV genotype C samples
+sbatch scripts/02_consensus_generation/artic_genotype_c.sh
+
+# Check consensus quality
+bash scripts/02_consensus_generation/consensus_quality_check.sh
+```
+
+#### Step 3: Variant Calling
+```bash
+# High-confidence variants
+sbatch scripts/03_variant_calling/variant_mapping.sh
+
+# Low-frequency variants (quasispecies)
+sbatch scripts/03_variant_calling/lofreq_variant_calling.sh
+```
+
+#### Step 4: Phylogenetic Analysis
+```bash
+# Combined phylogeny (all samples + references)
+sbatch scripts/04_phylogenetic_analysis/combined_tree_analysis.sh
+
+# Mother-baby pair trees
+sbatch scripts/04_phylogenetic_analysis/pairwise_trees.sh
+```
+
+#### Step 5: Protein Analysis
+```bash
+# Extract HBV protein genes
+sbatch scripts/05_protein_analysis/extract_genes.sh
+
+# Translate to amino acids
+sbatch scripts/05_protein_analysis/translate_proteins.sh
+
+# Compare mother-baby proteins
+sbatch scripts/05_protein_analysis/align_proteins.sh
+```
+
+#### Step 6: Functional Analysis
+```bash
+# PROVEAN functional impact prediction
+sbatch scripts/06_functional_analysis/provean_analysis.sh
+
+# B/T cell epitope mapping
+sbatch scripts/06_functional_analysis/epitope_mapping.sh
+
+# Drug resistance analysis
+sbatch scripts/06_functional_analysis/drug_resistance.sh
+```
+
+#### Step 7: Quasispecies Analysis
+```bash
+# Viral diversity assessment
+sbatch scripts/07_quasispecies_analysis/quasispecies_diversity.sh
+
+# Transmission bottleneck analysis
+sbatch scripts/07_quasispecies_analysis/transmission_bottleneck.sh
+```
+
+#### Step 8: Visualization
+```bash
+# Generate all plots and final report
+Rscript scripts/08_visualization/generate_plots.R
+```
+
+### Running Complete Pipeline
+```bash
+# Execute entire pipeline with dependency management
+bash run_complete_pipeline.sh
+
+# Monitor progress
+bash utils/monitor_jobs.sh
+```
+
+### Customizing Parameters
+Edit `config/pipeline_config.yaml` to modify:
+- Computational resources (CPU, memory, time)
+- Quality thresholds
+- ARTIC parameters
 - Output directories
-- Resource allocation
 
----
+## Additional Documentation
 
-## Results
+- [**Installation Guide**](INSTALLATION.md) - Detailed software setup
+- [**Usage Guide**](docs/usage_guide.md) - Step-by-step instructions
+- [**Troubleshooting**](docs/troubleshooting.md) - Common issues and solutions
+- [**Output Description**](docs/output_description.md) - Detailed output explanations
+- [**API Reference**](docs/api_reference.md) - Script parameters and options
 
-### Key Outputs
-- **Consensus sequences**: `results/consensus/`
-- **Phylogenetic trees**: `results/phylogeny/`
-- **Functional predictions**: `results/functional_analysis/`
-- **Epitope maps**: `results/epitope_mapping/`
-- **Visualizations**: `results/plots/`
-- **Final report**: `results/HBV_MTCT_Analysis_Report.html`
+## Quality Control
 
-### Expected Runtime
-- **Complete pipeline**: ~6-8 hours (64GB RAM, 16 cores)
-- **Consensus generation**: ~2-3 hours
-- **Functional prediction**: ~3-4 hours
-- **Visualization**: ~30 minutes
+### Expected Success Rates
+- **Data concatenation**: 100% (all barcodes processed)
+- **Consensus generation**: >90% (N content <10%)
+- **Variant calling**: >95% (>100 variants per sample typical)
+- **Phylogenetic analysis**: 100% (for complete genomes)
+- **Protein extraction**: >95% (valid ORFs)
+- **Functional analysis**: Variable (depends on sequence quality)
 
----
-
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```bibtex
-@article{hbv_mtct_2024,
-  title={Comprehensive functional landscape of Hepatitis B virus mother-to-child transmission variants using long-read sequencing},
-  author={Your Name et al.},
-  journal={Journal Name},
-  year={2024},
-  doi={10.xxxx/xxxx}
-}
-```
-
-### Software Citations
-This pipeline uses the following tools (see [CITATIONS.md](docs/CITATIONS.md) for complete list):
-
-- **ARTIC**: [Loman et al., 2020](https://github.com/artic-network/artic-ncov2019)
-- **Medaka**: [Oxford Nanopore Technologies](https://github.com/nanoporetech/medaka)
-- **PROVEAN**: [Choi & Chan, 2015](http://provean.jcvi.org/)
-- **SIFT4G**: [Vaser et al., 2016](https://github.com/rvaser/sift4g)
-- **BepiPred**: [Jespersen et al., 2017](https://services.healthtech.dtu.dk/service.php?BepiPred-2.0)
-- **AlphaFold**: [Jumper et al., 2021](https://alphafold.ebi.ac.uk/)
-
----
+### Performance Benchmarks
+| Metric | Expected Range | Concern Threshold |
+|--------|----------------|-------------------|
+| Consensus length | 2,500-3,500 bp | <2,000 bp |
+| N bases in consensus | <10% | >20% |
+| Mapping rate | >80% | <50% |
+| Variants per sample | 50-500 | <10 or >1000 |
+| Mean coverage depth | >100x | <20x |
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request with detailed description
+4. Ensure all tests pass
 
-### Development Setup
-```bash
-git clone https://github.com/yourusername/hbv-mtct-analysis.git
-cd hbv-mtct-analysis
-git checkout -b feature/your-feature
-# Make changes
-git commit -am "Add your feature"
-git push origin feature/your-feature
-# Create pull request
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
----
 
-## Support
+## Acknowledgments
 
-- 📧 **Email**: your.email@institution.edu
-- 🐛 **Issues**: [GitHub Issues](https://github.com/yourusername/hbv-mtct-analysis/issues)
-- 📖 **Documentation**: [Wiki](https://github.com/yourusername/hbv-mtct-analysis/wiki)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/yourusername/hbv-mtct-analysis/discussions)
+- ARTIC Network for consensus calling methodology
+- HBV research community for reference genomes and annotations
+- Bioinformatics software developers for essential tools
+- Your institution HPC team for computational resources
 
 ---
 
-<div align="center">
-
-**⭐ If this project helped your research, please give it a star! ⭐**
-
-
-</div>
+**Pipeline Version**: 1.0  
+**Last Updated**: 2024  
+**Maintainer**: Bela Khiratkar (belakhiratkar@gmail.com)

@@ -1,0 +1,141 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Set up Conda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        environment-file: docker/environment.yml
+        activate-environment: hbv_analysis
+    
+    - name: Install additional dependencies
+      shell: bash -l {0}
+      run: |
+        conda activate hbv_analysis
+        pip install -r docker/requirements.txt
+    
+    - name: Lint with flake8
+      shell: bash -l {0}
+      run: |
+        conda activate hbv_analysis
+        # Install flake8 if not in environment
+        pip install flake8
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Test with pytest
+      shell: bash -l {0}
+      run: |
+        conda activate hbv_analysis
+        pip install pytest pytest-cov
+        pytest tests/ -v --cov=utils --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  validate-scripts:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Validate shell scripts
+      run: |
+        # Install shellcheck
+        sudo apt-get update
+        sudo apt-get install shellcheck
+        
+        # Check all shell scripts
+        find . -name "*.sh" -not -path "./.git/*" | xargs shellcheck -e SC1091,SC2034
+    
+    - name: Validate R scripts
+      uses: r-lib/actions/setup-r@v2
+      with:
+        r-version: '4.2'
+    
+    - name: Check R syntax
+      run: |
+        # Install required R packages
+        Rscript -e "install.packages(c('ggplot2', 'dplyr', 'tidyr'), repos='https://cran.r-project.org/')"
+        
+        # Syntax check R scripts
+        find . -name "*.R" -not -path "./.git/*" | while read -r file; do
+          echo "Checking $file"
+          Rscript -e "parse('$file')" || exit 1
+        done
+
+  documentation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check documentation
+      run: |
+        # Check that all modules have README files
+        for dir in */; do
+          if [[ "$dir" == ".*/" ]] || [[ "$dir" == "data/" ]] || [[ "$dir" == "results/" ]]; then
+            continue
+          fi
+          if [[ ! -f "${dir}README.md" ]]; then
+            echo "Missing README.md in $dir"
+            exit 1
+          fi
+        done
+        
+        # Check for broken links in markdown files
+        find . -name "*.md" -not -path "./.git/*" | xargs grep -l "http" | while read -r file; do
+          echo "Checking links in $file"
+          # This is a simple check - could be enhanced with a proper link checker
+          grep -o 'http[s]*://[^)]*' "$file" | head -5
+        done
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run security checks
+      run: |
+        # Check for hardcoded secrets or sensitive information
+        if grep -r "password\|secret\|key\|token" --include="*.sh" --include="*.py" --include="*.R" . | grep -v "# Example" | grep -v "your.email"; then
+          echo "Potential hardcoded secrets found!"
+          exit 1
+        fi
+        
+        # Check file permissions
+        find . -name "*.sh" | while read -r script; do
+          if [[ ! -x "$script" ]]; then
+            echo "Script $script is not executable"
+            exit 1
+          fi
+        done

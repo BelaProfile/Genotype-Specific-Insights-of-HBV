@@ -1,33 +1,33 @@
 # HBV Mother-to-Child Transmission Analysis Pipeline
 
-## 🔬 Project Overview
+## Project Overview
 
 This repository contains the complete bioinformatics pipeline for analyzing Hepatitis B virus (HBV) mother-to-child transmission using Oxford Nanopore long-read sequencing data. The study characterizes 749 mutations across 16 clinical samples (8 mother-infant pairs) infected with HBV genotypes C and D.
 
 ### Key Findings
-- 🧬 **749 mutations analyzed** across all four major HBV proteins
-- ⚠️ **82.4% deleterious rate** indicating extreme functional constraints
-- 🆕 **Novel L256P drug resistance mutation** discovered
-- 🛡️ **Vaccine escape mutations** L140F and P145L identified
-- 📊 **96% epitope disruption rate** in surface antigen
-- 🔄 **Complete transmission bottleneck analysis** performed
+- **749 mutations analyzed** across all four major HBV proteins
+- **82.4% deleterious rate** indicating extreme functional constraints
+- **Novel L256P drug resistance mutation** discovered
+- **Vaccine escape mutations** L140F and P145L identified
+- **96% epitope disruption rate** in surface antigen
+- **Complete transmission bottleneck analysis** performed
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [🛠️ Installation](#️-installation)
-- [📁 Project Structure](#-project-structure)
-- [🔄 Pipeline Workflow](#-pipeline-workflow)
-- [💻 Usage](#-usage)
-- [📊 Results](#-results)
-- [📖 Citation](#-citation)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+- [Installation](#️-installation)
+- [Project Structure](#-project-structure)
+- [Pipeline Workflow](#-pipeline-workflow)
+- [Usage](#-usage)
+- [Results](#-results)
+- [Citation](#-citation)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-## 🛠️ Installation
+## Installation
 
 ### Prerequisites
 ```bash
@@ -58,7 +58,7 @@ See [Installation Guide](docs/INSTALLATION.md) for detailed setup instructions.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 hbv-mtct-analysis/
@@ -107,7 +107,7 @@ hbv-mtct-analysis/
 
 ---
 
-## 🔄 Pipeline Workflow
+## Pipeline Workflow
 
 ### Overview Diagram
 ```mermaid
@@ -239,7 +239,7 @@ Rscript 10_visualization/create_publication_figures.R
 
 ---
 
-## 💻 Usage
+## Usage
 
 ### Quick Start
 ```bash
@@ -262,7 +262,7 @@ Edit `config/pipeline_config.yaml` to customize:
 
 ---
 
-## 📊 Results
+## Results
 
 ### Key Outputs
 - **Consensus sequences**: `results/consensus/`
@@ -280,7 +280,7 @@ Edit `config/pipeline_config.yaml` to customize:
 
 ---
 
-## 📖 Citation
+## Citation
 
 If you use this pipeline in your research, please cite:
 
@@ -306,7 +306,7 @@ This pipeline uses the following tools (see [CITATIONS.md](docs/CITATIONS.md) fo
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -323,13 +323,7 @@ git push origin feature/your-feature
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🆘 Support
+## Support
 
 - 📧 **Email**: your.email@institution.edu
 - 🐛 **Issues**: [GitHub Issues](https://github.com/yourusername/hbv-mtct-analysis/issues)
@@ -338,18 +332,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🔄 Updates
-
-- **v1.0.0** (2024-01-01): Initial release
-- **v1.1.0** (2024-02-01): Added visualization module
-- **v1.2.0** (2024-03-01): Enhanced epitope mapping
-
----
-
 <div align="center">
 
 **⭐ If this project helped your research, please give it a star! ⭐**
 
-Made with ❤️ for the HBV research community
 
 </div>

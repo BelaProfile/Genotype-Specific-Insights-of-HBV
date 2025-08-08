@@ -95,24 +95,20 @@ See [INSTALLATION.md](INSTALLATION.md) for complete setup instructions including
 ```mermaid
 graph TD
     A[Raw FASTQ Files] --> B[Data Preparation]
-    B --> C[Quality Control]
-    C --> D[Consensus Generation]
-    D --> E[Variant Calling]
-    E --> F[Phylogenetic Analysis]
+    B --> C[Consensus Generation]
+    C --> D[Quality Control]
+    D --> E[Phylogenetic Analysis]
+    D --> F[Gene Extraction]
     F --> G[Protein Analysis]
     G --> H[Functional Prediction]
-    H --> I[Quasispecies Analysis]
-    I --> J[Visualization & Reports]
-    
-    style A fill:#e1f5fe
-    style J fill:#f3e5f5
-    style D fill:#e8f5e8
-    style E fill:#fff3e0
-    style F fill:#fce4ec
-    style G fill:#f1f8e9
-    style H fill:#e0f2f1
-    style I fill:#faf2ff
+    G --> I[Epitope Mapping]
+    D --> J[Quasispecies Analysis]
+    H --> K[Visualization]
+    I --> K
+    J --> K
+    E --> K
 ```
+
 
 ### Processing Steps
 
